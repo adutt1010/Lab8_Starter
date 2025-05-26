@@ -3,22 +3,43 @@
 
 const CACHE_NAME = 'lab-8-starter';
 
+const ASSETS_TO_CACHE = [
+  '/',
+  '/index.html',
+  '/manifest.json',
+  '/assets/styles/main.css',
+  '/assets/scripts/main.js',
+  '/assets/scripts/RecipeCard.js',
+  '/assets/images/icons/icon-192x192.png',
+  '/assets/images/icons/icon-512x512.png'
+];
+
 // Installs the service worker. Feed it some initial URLs to cache
 self.addEventListener('install', function (event) {
   event.waitUntil(
     caches.open(CACHE_NAME).then(function (cache) {
       // B6. TODO - Add all of the URLs from RECIPE_URLs here so that they are
       //            added to the cache when the ServiceWorker is installed
-      return cache.addAll([]);
+      return cache.addAll(ASSETS_TO_CACHE);
     })
   );
 });
 
 // Activates the service worker
-self.addEventListener('activate', function (event) {
-  event.waitUntil(self.clients.claim());
+// self.addEventListener('activate', function (event) {
+//   event.waitUntil(self.clients.claim());
+// });
+self.addEventListener('activate', event => {
+  event.waitUntil(
+    caches.keys().then(cacheNames =>
+      Promise.all(
+        cacheNames
+          .filter(name => name !== CACHE_NAME)
+          .map(name => caches.delete(name))
+      )
+    ).then(() => self.clients.claim())
+  );
 });
-
 // Intercept fetch requests and cache them
 self.addEventListener('fetch', function (event) {
   // We added some known URLs to the cache above, but tracking down every
@@ -37,4 +58,17 @@ self.addEventListener('fetch', function (event) {
   // B8. TODO - If the request is in the cache, return with the cached version.
   //            Otherwise fetch the resource, add it to the cache, and return
   //            network response.
+  event.respondWith(
+    caches.match(event.request).then(cached => {
+      if (cached) {
+        return cached;
+      }
+      return fetch(event.request).then(networkResponse => {
+        return caches.open(CACHE_NAME).then(cache => {
+          cache.put(event.request, networkResponse.clone());
+          return networkResponse;
+        });
+      });
+    })
+  );
 });
